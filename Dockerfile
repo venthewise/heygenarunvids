@@ -5,7 +5,7 @@ RUN apt-get update && \
     apt-get clean
 
 WORKDIR /app
-RUN pip install flask
+RUN pip install flask requests
 
 COPY app.py .
 
