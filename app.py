@@ -6,60 +6,55 @@ import uuid
 
 app = Flask(__name__)
 
-@app.route("/stitch_videos", methods=["POST"])
-def stitch_videos():
+@app.route("/add_captions", methods=["POST"])
+def add_captions():
     data = request.json
-    urls = data.get("videos", [])
+    video_url = data.get("video")
+    caption_url = data.get("caption")
 
-    if not urls:
-        return jsonify({"error": "No video URLs provided"}), 400
+    if not video_url or not caption_url:
+        return jsonify({"error": "Missing 'video' or 'caption' URL"}), 400
 
-    # Unique working directory per request
-    workdir = f"/app/videos_{uuid.uuid4().hex}"
+    workdir = f"/app/work_{uuid.uuid4().hex}"
     os.makedirs(workdir, exist_ok=True)
 
-    concat_file = os.path.join(workdir, "files.txt")
+    video_path = os.path.join(workdir, "input.mp4")
+    caption_path = os.path.join(workdir, "caption.ass")
+    output_path = os.path.join(workdir, "output.mp4")
 
     try:
-        # Download + Normalize each video
-        with open(concat_file, "w") as f:
-            for i, url in enumerate(urls):
-                raw_path = os.path.join(workdir, f"raw_{i+1:03}.mp4")
-                norm_path = os.path.join(workdir, f"norm_{i+1:03}.mp4")
+        # Download input video and caption
+        subprocess.run(["wget", "-O", video_path, video_url], check=True)
+        subprocess.run(["wget", "-O", caption_path, caption_url], check=True)
 
-                # Download
-                subprocess.run(["wget", "-O", raw_path, url], check=True)
+        # Inject global style override to make text centered, bold, and large
+        style_override = """
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, 
+ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,64,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,4,2,5,20,20,20,1
+"""
+        # Prepend or override in caption.ass file
+        with open(caption_path, "r+", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+            if "[V4+ Styles]" not in content:
+                f.seek(0)
+                f.write("[Script Info]\nTitle: AutoStyled\nScriptType: v4.00+\n\n" + style_override + "\n[Events]\n")
+                f.write(content)
+            else:
+                f.seek(0)
+                f.write(style_override + "\n" + content)
 
-                # Normalize to prevent audio desync
-                subprocess.run([
-                    "ffmpeg", "-y",
-                    "-i", raw_path,
-                    "-r", "30",           # normalize FPS
-                    "-ar", "44100",       # normalize audio rate
-                    "-ac", "2",           # stereo
-                    "-c:v", "libx264",
-                    "-preset", "ultrafast",
-                    "-c:a", "aac",
-                    "-movflags", "+faststart",
-                    norm_path
-                ], check=True)
-
-                f.write(f"file '{norm_path}'\n")
-
-        # Output stitched file
-        output_path = f"/app/output_{uuid.uuid4().hex}.mp4"
-
-        # Stitch normalized clips
+        # Apply captions
         subprocess.run([
-            "ffmpeg", "-y",
-            "-f", "concat", "-safe", "0",
-            "-i", concat_file,
+            "ffmpeg",
+            "-y",
+            "-i", video_path,
+            "-vf", f"ass={caption_path}",
             "-c:v", "libx264",
             "-preset", "ultrafast",
-            "-c:a", "aac",
             "-r", "30",
-            "-ar", "44100",
-            "-af", "aresample=async=1",
+            "-pix_fmt", "yuv420p",
             output_path
         ], check=True)
 
@@ -69,10 +64,11 @@ def stitch_videos():
         return jsonify({"error": str(e)}), 500
 
     finally:
-        # Clean up temporary working directory
+        # Cleanup
         shutil.rmtree(workdir, ignore_errors=True)
+
 
 if __name__ == "__main__":
     import os
-    port = int(os.environ.get("PORT", 8080))  # Render expects 8080
+    port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
