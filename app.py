@@ -27,11 +27,11 @@ def add_captions():
         subprocess.run(["wget", "-q", "-O", video_path, video_url], check=True)
         subprocess.run(["wget", "-q", "-O", caption_path, caption_url], check=True)
 
-        # Fixed font size 36, centered, bold, white, no shadow
+        # Fixed font size 12, centered, bold, white, no shadow
         style_override = """
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,36,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,3,0,5,20,20,40,1
+Style: Default,DejaVu Sans,12,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,3,0,5,20,20,40,1
 """
 
         # Force style override or prepend if missing
