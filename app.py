@@ -27,20 +27,34 @@ def add_captions():
         subprocess.run(["wget", "-q", "-O", video_path, video_url], check=True)
         subprocess.run(["wget", "-q", "-O", caption_path, caption_url], check=True)
 
-        # Override caption style (centered, large font, no shadow)
-        style_override = """
+        # Detect video height using ffprobe (for dynamic font scaling)
+        probe = subprocess.run([
+            "ffprobe", "-v", "error", "-select_streams", "v:0",
+            "-show_entries", "stream=height", "-of", "csv=p=0", video_path
+        ], capture_output=True, text=True)
+
+        height = int(probe.stdout.strip()) if probe.stdout.strip().isdigit() else 720
+
+        # Adjust font size relative to resolution
+        if height >= 1080:
+            fontsize = 64
+        elif height >= 720:
+            fontsize = 48
+        else:
+            fontsize = 36
+
+        # Override caption style (centered, bold, white, no shadow)
+        style_override = f"""
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,72,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,3,0,5,20,20,40,1
+Style: Default,Arial,{fontsize},&H00FFFFFF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,3,0,5,20,20,40,1
 """
 
-        # Force style replacement (simpler than merging)
+        # Inject or replace style section
         with open(caption_path, "r+", encoding="utf-8", errors="ignore") as f:
             content = f.read()
-            # Replace old styles or prepend new ones
             if "[V4+ Styles]" in content:
                 before, after = content.split("[V4+ Styles]", 1)
-                # Remove up to the next [Events]
                 after = after.split("[Events]", 1)[-1]
                 f.seek(0)
                 f.write(before + style_override + "\n[Events]\n" + after)
@@ -49,7 +63,7 @@ Style: Default,Arial,72,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,-1,0,0,0,100
                 f.seek(0)
                 f.write("[Script Info]\nTitle: AutoStyled\nScriptType: v4.00+\n\n" + style_override + "\n[Events]\n" + content)
 
-        # Apply captions with ffmpeg
+        # Apply captions using ffmpeg
         subprocess.run([
             "ffmpeg",
             "-y",
