@@ -76,7 +76,7 @@ Style: Default,DejaVu Sans,10,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,-1,0,0
                 "-y",
                 "-i", output_with_caption,
                 "-i", bgm_path,
-                "-filter_complex", "[1:a]volume=0.25[a1];[0:a][a1]amix=inputs=2:duration=shortest",
+                "-filter_complex", "[1:a]volume=0.15[a1];[0:a][a1]amix=inputs=2:duration=shortest",
                 "-c:v", "copy",
                 "-shortest",
                 final_output
