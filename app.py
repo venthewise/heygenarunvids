@@ -12,6 +12,7 @@ def add_captions():
     data = request.json
     video_url = data.get("video")
     caption_url = data.get("caption")
+    bgm_url = data.get("bgm")  # optional background music
 
     if not video_url or not caption_url:
         return jsonify({"error": "Missing 'video' or 'caption' URL"}), 400
@@ -21,12 +22,19 @@ def add_captions():
 
     video_path = os.path.join(workdir, "input.mp4")
     caption_path = os.path.join(workdir, "caption.ass")
-    output_path = os.path.join(workdir, "output.mp4")
+    output_with_caption = os.path.join(workdir, "captioned.mp4")
+    final_output = os.path.join(workdir, "final_output.mp4")
 
     try:
         # Download input files
         subprocess.run(["wget", "-q", "-O", video_path, video_url], check=True)
         subprocess.run(["wget", "-q", "-O", caption_path, caption_url], check=True)
+
+        # Optional: Download background music
+        bgm_path = None
+        if bgm_url:
+            bgm_path = os.path.join(workdir, "bgm.mp3")
+            subprocess.run(["wget", "-q", "-O", bgm_path, bgm_url], check=True)
 
         # Override caption style (small, centered, no shadow)
         style_override = """
@@ -48,7 +56,7 @@ Style: Default,DejaVu Sans,10,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,-1,0,0
                 f.seek(0)
                 f.write("[Script Info]\nTitle: AutoStyled\nScriptType: v4.00+\n\n" + style_override + "\n[Events]\n" + content)
 
-        # Apply captions with ffmpeg
+        # Step 1: Apply captions
         subprocess.run([
             "ffmpeg",
             "-y",
@@ -58,8 +66,24 @@ Style: Default,DejaVu Sans,10,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,-1,0,0
             "-preset", "ultrafast",
             "-r", "30",
             "-pix_fmt", "yuv420p",
-            output_path
+            output_with_caption
         ], check=True)
+
+        # Step 2: Add background music (if provided)
+        if bgm_path:
+            subprocess.run([
+                "ffmpeg",
+                "-y",
+                "-i", output_with_caption,
+                "-i", bgm_path,
+                "-filter_complex", "[1:a]volume=0.25[a1];[0:a][a1]amix=inputs=2:duration=shortest",
+                "-c:v", "copy",
+                "-shortest",
+                final_output
+            ], check=True)
+            output_path = final_output
+        else:
+            output_path = output_with_caption
 
         response = send_file(output_path, as_attachment=True)
 
