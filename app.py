@@ -34,7 +34,7 @@ def add_bgm():
             "-y",
             "-i", video_path,
             "-i", bgm_path,
-            "-filter_complex", "[1:a]volume=0.10[a1];[0:a][a1]amix=inputs=2:duration=shortest",
+            "-filter_complex", "[1:a]volume=0.20[a1];[0:a][a1]amix=inputs=2:duration=shortest",
             "-c:v", "copy",
             "-shortest",
             output_path
